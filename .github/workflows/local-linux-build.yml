@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  linux:
+  native-core:
     runs-on: ubuntu-latest
     container: debian:trixie-slim
 
@@ -28,3 +28,31 @@ jobs:
 
       - name: Build core
         run: cmake --build build --target deskflow-core -j2
+
+  flatpak-bundle:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install flatpak builder
+        run: |
+          sudo apt update -qqq > /dev/null
+          sudo apt install -qqq -y flatpak flatpak-builder > /dev/null
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
+
+      - name: Build Flatpak repo
+        run: |
+          flatpak-builder --force-clean --repo=repo build-dir deploy/linux/flatpak/org.deskflow.deskflow.yml
+
+      - name: Create Flatpak bundle
+        run: |
+          flatpak build-bundle repo deskflow-wayland-locked-modifiers.flatpak org.deskflow.deskflow stable
+
+      - name: Upload Flatpak bundle
+        uses: actions/upload-artifact@v6
+        with:
+          name: deskflow-wayland-locked-modifiers-flatpak
+          path: deskflow-wayland-locked-modifiers.flatpak
+          if-no-files-found: error
