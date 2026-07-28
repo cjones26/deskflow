@@ -97,8 +97,9 @@ bool EiKeyState::fakeCtrlAltDel()
 
 KeyModifierMask EiKeyState::pollActiveModifiers() const
 {
-  const auto xkbMask = xkb_state_serialize_mods(m_xkbState, XKB_STATE_MODS_EFFECTIVE);
-  return convertModMask(xkbMask);
+  const auto effectiveMask = xkb_state_serialize_mods(m_xkbState, XKB_STATE_MODS_EFFECTIVE);
+  const auto lockedMask = xkb_state_serialize_mods(m_xkbState, XKB_STATE_MODS_LOCKED);
+  return convertModMask(effectiveMask) | convertLockedModMask(lockedMask);
 }
 
 std::int32_t EiKeyState::pollActiveGroup() const
@@ -181,6 +182,41 @@ std::uint32_t EiKeyState::convertModMask(xkb_mod_mask_t xkbModMaskIn) const
       LOG_VERBOSE("modifier mask %s ignored", name);
     else
       LOG_WARN("modifier mask %s not accounted for, this is a bug", name);
+  }
+
+  return modMaskOut;
+}
+
+std::uint32_t EiKeyState::convertLockedModMask(xkb_mod_mask_t xkbModMaskIn) const
+{
+  std::uint32_t modMaskOut = 0;
+
+  for (xkb_mod_index_t xkbModIdx = 0; xkbModIdx < xkb_keymap_num_mods(m_xkbKeymap); xkbModIdx++) {
+    const char *name = xkb_keymap_mod_get_name(m_xkbKeymap, xkbModIdx);
+
+#ifdef HAVE_XKB_KEYMAP_MOD_GET_MASK
+    const auto xkbModMask = xkb_keymap_mod_get_mask(m_xkbKeymap, name);
+#else
+    const xkb_mod_mask_t xkbModMask = (1 << xkbModIdx);
+#endif
+
+    if (xkbModMask == 0 || (xkbModMaskIn & xkbModMask) != xkbModMask) {
+      continue;
+    }
+
+#ifndef XKB_VMOD_NAME_NUM
+    static const auto XKB_VMOD_NAME_NUM = "NumLock";
+    static const auto XKB_VMOD_NAME_SCROLL = "ScrollLock";
+    static const auto XKB_MOD_NAME_MOD2 = "Mod2";
+#endif
+
+    if (strcmp(XKB_MOD_NAME_CAPS, name) == 0) {
+      modMaskOut |= KeyModifierCapsLock;
+    } else if (strcmp(XKB_VMOD_NAME_NUM, name) == 0 || strcmp(XKB_MOD_NAME_MOD2, name) == 0) {
+      modMaskOut |= KeyModifierNumLock;
+    } else if (strcmp(XKB_VMOD_NAME_SCROLL, name) == 0) {
+      modMaskOut |= KeyModifierScrollLock;
+    }
   }
 
   return modMaskOut;
@@ -346,11 +382,17 @@ void EiKeyState::updateXkbState(uint32_t keyval, bool isPressed)
 
 void EiKeyState::clearStaleModifiers()
 {
-  // Recreate the XKB state to clear stuck modifiers that happen when
-  // modifier keys are press on client and released on server
+  const auto lockedMods = xkb_state_serialize_mods(m_xkbState, XKB_STATE_MODS_LOCKED);
+  const auto lockedLayout = xkb_state_serialize_layout(m_xkbState, XKB_STATE_LAYOUT_LOCKED);
+
+  // Recreate the XKB state to clear stuck depressed modifiers that happen when
+  // modifier keys are pressed on the client and released on the server. Locked
+  // modifiers are real keyboard state; do not clear NumLock/CapsLock/ScrollLock
+  // during screen transitions.
   if (m_xkbState) {
     xkb_state_unref(m_xkbState);
   }
   m_xkbState = xkb_state_new(m_xkbKeymap);
+  xkb_state_update_mask(m_xkbState, 0, 0, lockedMods, 0, 0, lockedLayout);
 }
 } // namespace deskflow
