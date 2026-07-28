@@ -14,15 +14,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install container dependencies
+      - name: Install dependencies
         run: |
-          apt update
-          apt install -y git
-
-      - name: Install project dependencies
-        uses: ./.github/actions/install-dependencies
-        with:
-          like: debian
+          apt update -qqq > /dev/null
+          apt install -qqq -y \
+            git cmake build-essential ninja-build \
+            xorg-dev libx11-dev libxtst-dev libssl-dev \
+            libxkbfile-dev qt6-base-dev qt6-tools-dev libxkbcommon-dev \
+            libei-dev libportal-dev help2man > /dev/null
 
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSKIP_BUILD_TESTS=ON
