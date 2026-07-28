@@ -3,7 +3,7 @@ name: Local Linux Build
 on:
   push:
     branches:
-      - agent/fix-wayland-locked-modifiers
+      - agent/fix-wayland-locked-modifiers-validation
   workflow_dispatch:
 
 env:
