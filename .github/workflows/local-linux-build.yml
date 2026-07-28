@@ -6,53 +6,66 @@ on:
       - agent/fix-wayland-locked-modifiers
   workflow_dispatch:
 
+env:
+  CMAKE_CONFIGURE: cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -DSKIP_BUILD_TESTS=ON -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+
 jobs:
   native-core:
     runs-on: ubuntu-latest
-    container: debian:trixie-slim
+    container: debian:testing-slim
 
     steps:
+      - name: Install git
+        run: apt update -qqq > /dev/null && apt install -qqq -y git > /dev/null
+
       - uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
           apt update -qqq > /dev/null
           apt install -qqq -y \
-            git cmake build-essential ninja-build \
+            cmake build-essential ninja-build \
             xorg-dev libx11-dev libxtst-dev libssl-dev \
             libxkbfile-dev qt6-base-dev qt6-tools-dev libxkbcommon-dev \
             libei-dev libportal-dev help2man > /dev/null
 
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSKIP_BUILD_TESTS=ON
+        run: ${{ env.CMAKE_CONFIGURE }} -G Ninja -DCMAKE_INSTALL_PREFIX=/usr
 
       - name: Build core
-        run: cmake --build build --target deskflow-core -j2
+        run: cmake --build build --config Release -j8 --target deskflow-core
 
   flatpak-bundle:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
+      options: --privileged
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Check out repository
+        uses: actions/checkout@v6
 
-      - name: Install flatpak builder
-        run: |
-          sudo apt update -qqq > /dev/null
-          sudo apt install -qqq -y flatpak flatpak-builder > /dev/null
-          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak install -y flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
+      - run: git config --global protocol.file.allow always
 
-      - name: Build Flatpak repo
-        run: |
-          flatpak-builder --force-clean --repo=repo build-dir deploy/linux/flatpak/org.deskflow.deskflow.yml
+      - name: Lint manifest
+        run: flatpak-builder-lint manifest deploy/linux/flatpak/org.deskflow.deskflow.yml
 
-      - name: Create Flatpak bundle
-        run: |
-          flatpak build-bundle repo deskflow-wayland-locked-modifiers.flatpak org.deskflow.deskflow stable
+      - name: Build Flatpak
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: deskflow-wayland-locked-modifiers-linux-x86_64.flatpak
+          manifest-path: deploy/linux/flatpak/org.deskflow.deskflow.yml
+          cache-key: flatpak-builder-x86_64-local-test
+          arch: x86_64
+          upload-artifact: false
+
+      - name: Validate build
+        run: flatpak-builder-lint --exceptions --user-exceptions deploy/linux/flatpak/ci-build-lint-exceptions.json repo repo
 
       - name: Upload Flatpak bundle
         uses: actions/upload-artifact@v6
         with:
           name: deskflow-wayland-locked-modifiers-flatpak
-          path: deskflow-wayland-locked-modifiers.flatpak
+          path: deskflow-wayland-locked-modifiers-linux-x86_64.flatpak
           if-no-files-found: error
