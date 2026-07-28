@@ -44,9 +44,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: sithlord48/fancy-checkout@v2
 
       - run: git config --global protocol.file.allow always
+
+      - name: Get version
+        uses: ./.github/actions/get-version
+
+      - name: Lint appstream
+        run: flatpak-builder-lint appstream deploy/linux/org.deskflow.deskflow.metainfo.xml
 
       - name: Lint manifest
         run: flatpak-builder-lint manifest deploy/linux/flatpak/org.deskflow.deskflow.yml
@@ -54,9 +60,9 @@ jobs:
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: deskflow-wayland-locked-modifiers-linux-x86_64.flatpak
+          bundle: deskflow-${{env.DESKFLOW_PACKAGE_VERSION}}-linux-x86_64.flatpak
           manifest-path: deploy/linux/flatpak/org.deskflow.deskflow.yml
-          cache-key: flatpak-builder-x86_64-local-test
+          cache-key: flatpak-builder-x86_64-2.0
           arch: x86_64
           upload-artifact: false
 
@@ -64,8 +70,8 @@ jobs:
         run: flatpak-builder-lint --exceptions --user-exceptions deploy/linux/flatpak/ci-build-lint-exceptions.json repo repo
 
       - name: Upload Flatpak bundle
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
-          name: deskflow-wayland-locked-modifiers-flatpak
-          path: deskflow-wayland-locked-modifiers-linux-x86_64.flatpak
+          name: package-deskflow-flatpak-x86_64
+          path: ${{github.workspace}}/deskflow[-_]*.flatpak
           if-no-files-found: error
