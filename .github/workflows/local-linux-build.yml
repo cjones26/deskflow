@@ -39,7 +39,7 @@ jobs:
         run: cmake --build build --config Release -j8 --target EiKeyStateTests
 
       - name: Run EiKeyStateTests
-        run: QT_QPA_PLATFORM=minimal ctest --test-dir build/src/unittests --output-on-failure -R '^EiKeyStateTests$'
+        run: QT_QPA_PLATFORM=minimal build/src/unittests/platform/EiKeyStateTests
 
   flatpak-bundle:
     runs-on: ubuntu-latest
