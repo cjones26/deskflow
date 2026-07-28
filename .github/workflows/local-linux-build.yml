@@ -1,0 +1,31 @@
+name: Local Linux Build
+
+on:
+  push:
+    branches:
+      - agent/fix-wayland-locked-modifiers
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    container: debian:trixie-slim
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install container dependencies
+        run: |
+          apt update
+          apt install -y git
+
+      - name: Install project dependencies
+        uses: ./.github/actions/install-dependencies
+        with:
+          like: debian
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSKIP_BUILD_TESTS=ON
+
+      - name: Build core
+        run: cmake --build build --target deskflow-core -j2
