@@ -35,6 +35,12 @@ jobs:
       - name: Build core
         run: cmake --build build --config Release -j8 --target deskflow-core
 
+      - name: Build EiKeyStateTests
+        run: cmake --build build --config Release -j8 --target EiKeyStateTests
+
+      - name: Run EiKeyStateTests
+        run: QT_QPA_PLATFORM=minimal ctest --test-dir build/src/unittests --output-on-failure -R '^EiKeyStateTests$'
+
   flatpak-bundle:
     runs-on: ubuntu-latest
     timeout-minutes: 60
